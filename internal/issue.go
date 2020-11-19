@@ -28,8 +28,8 @@ type CommentGetter interface {
 	GetUserLogin() string
 }
 
-func (i *Issue) GetComments() ([]Comment, error) {
-	return nil, nil
+func (i *Issue) GetFirstReply() (Comment, error) {
+	return Comment{}, nil
 }
 
 func (i *Issue) GetCreatedAt() string {
