@@ -17,11 +17,15 @@ type CommentGetter struct {
 	GetFirstReplyCall struct {
 		sync.Mutex
 		CallCount int
-		Returns   struct {
+		Receives  struct {
+			Client       internal.Client
+			IgnoredUsers []string
+		}
+		Returns struct {
 			Comment internal.Comment
 			Error   error
 		}
-		Stub func() (internal.Comment, error)
+		Stub func(internal.Client, ...string) (internal.Comment, error)
 	}
 	GetUserLoginCall struct {
 		sync.Mutex
@@ -42,12 +46,14 @@ func (f *CommentGetter) GetCreatedAt() string {
 	}
 	return f.GetCreatedAtCall.Returns.String
 }
-func (f *CommentGetter) GetFirstReply() (internal.Comment, error) {
+func (f *CommentGetter) GetFirstReply(param1 internal.Client, param2 ...string) (internal.Comment, error) {
 	f.GetFirstReplyCall.Lock()
 	defer f.GetFirstReplyCall.Unlock()
 	f.GetFirstReplyCall.CallCount++
+	f.GetFirstReplyCall.Receives.Client = param1
+	f.GetFirstReplyCall.Receives.IgnoredUsers = param2
 	if f.GetFirstReplyCall.Stub != nil {
-		return f.GetFirstReplyCall.Stub()
+		return f.GetFirstReplyCall.Stub(param1, param2...)
 	}
 	return f.GetFirstReplyCall.Returns.Comment, f.GetFirstReplyCall.Returns.Error
 }

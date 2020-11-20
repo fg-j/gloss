@@ -18,6 +18,7 @@ type Client interface {
 	Get(path string, params ...string) ([]byte, error)
 }
 
+//TODO: make this store a URL with a scheme and Host instead of re-parsing every time
 type APIClient struct {
 	ServerURL string
 	client    HTTPClient

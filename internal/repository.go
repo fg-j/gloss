@@ -30,6 +30,7 @@ type Clock interface {
 	Now() time.Time
 }
 
+// TODO change to Client and not APIClient
 func (o *Organization) GetRepos(client APIClient) ([]Repository, error) {
 	body, err := client.Get(fmt.Sprintf("orgs/%s/repos", o.Name), "per_page=100")
 	if err != nil {
@@ -66,11 +67,13 @@ func (r *Repository) GetFirstContactTimes(client Client, issues []CommentGetter,
 	defer close(output)
 
 	for _, issue := range issues {
+		// TODO: add the option to ignore issues by User type Bot
+		// TODO: add the option to ignore issues created by a specific set of users
 		if strings.Contains(issue.GetUserLogin(), "bot") {
 			continue
 		}
-
-		comment, err := issue.GetFirstReply()
+		// TODO: pass a set of ignored users here
+		comment, err := issue.GetFirstReply(client)
 
 		if err != nil {
 			output <- TimeContainer{Error: fmt.Errorf("could not get first reply: %s", err)}

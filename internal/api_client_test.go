@@ -23,6 +23,7 @@ func testAPIClient(t *testing.T, context spec.G, it spec.S) {
 	apiClient = NewAPIClient("https://test-server.com", httpClient)
 
 	context("Get", func() {
+		//TODO: Add test that auth token is added
 		context("when an endpoint is provided", func() {
 			it.Before(func() {
 				doBody := ioutil.NopCloser(bytes.NewReader([]byte("some body")))
