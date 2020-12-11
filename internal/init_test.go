@@ -12,5 +12,6 @@ func TestInternal(t *testing.T) {
 	suite("TestIssue", testIssue)
 	suite("TestAPIClient", testAPIClient)
 	suite("TestRepository", testRepository)
+	suite("TestOrganization", testOrganization)
 	suite.Run(t)
 }

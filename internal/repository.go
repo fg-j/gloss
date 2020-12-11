@@ -21,28 +21,9 @@ type Repository struct {
 	} `json:"owner"`
 }
 
-type Organization struct {
-	Name string
-}
-
 //go:generate faux --interface Clock --output fakes/clock.go
 type Clock interface {
 	Now() time.Time
-}
-
-// TODO change to Client and not APIClient
-func (o *Organization) GetRepos(client APIClient) ([]Repository, error) {
-	body, err := client.Get(fmt.Sprintf("orgs/%s/repos", o.Name), "per_page=100")
-	if err != nil {
-		return nil, fmt.Errorf("failed getting org repos: %s", err)
-	}
-
-	repos := []Repository{}
-	err = json.Unmarshal(body, &repos)
-	if err != nil {
-		return nil, fmt.Errorf("could not unmarshal response: %s\n  : %s", string(body), err)
-	}
-	return repos, nil
 }
 
 func (r *Repository) GetRecentIssues(client Client, clock Clock) ([]Issue, error) {
