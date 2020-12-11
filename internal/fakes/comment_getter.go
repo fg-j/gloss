@@ -14,6 +14,20 @@ type CommentGetter struct {
 		}
 		Stub func() string
 	}
+	GetFirstContactTimeCall struct {
+		sync.Mutex
+		CallCount int
+		Receives  struct {
+			Client       internal.Client
+			Clock        internal.Clock
+			IgnoredUsers []string
+		}
+		Returns struct {
+			Float64 float64
+			Error   error
+		}
+		Stub func(internal.Client, internal.Clock, ...string) (float64, error)
+	}
 	GetFirstReplyCall struct {
 		sync.Mutex
 		CallCount int
@@ -45,6 +59,18 @@ func (f *CommentGetter) GetCreatedAt() string {
 		return f.GetCreatedAtCall.Stub()
 	}
 	return f.GetCreatedAtCall.Returns.String
+}
+func (f *CommentGetter) GetFirstContactTime(param1 internal.Client, param2 internal.Clock, param3 ...string) (float64, error) {
+	f.GetFirstContactTimeCall.Lock()
+	defer f.GetFirstContactTimeCall.Unlock()
+	f.GetFirstContactTimeCall.CallCount++
+	f.GetFirstContactTimeCall.Receives.Client = param1
+	f.GetFirstContactTimeCall.Receives.Clock = param2
+	f.GetFirstContactTimeCall.Receives.IgnoredUsers = param3
+	if f.GetFirstContactTimeCall.Stub != nil {
+		return f.GetFirstContactTimeCall.Stub(param1, param2, param3...)
+	}
+	return f.GetFirstContactTimeCall.Returns.Float64, f.GetFirstContactTimeCall.Returns.Error
 }
 func (f *CommentGetter) GetFirstReply(param1 internal.Client, param2 ...string) (internal.Comment, error) {
 	f.GetFirstReplyCall.Lock()

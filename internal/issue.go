@@ -3,7 +3,9 @@ package internal
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/url"
+	"time"
 )
 
 type TimeContainer struct {
@@ -33,6 +35,7 @@ type CommentGetter interface {
 	GetFirstReply(client Client, ignoredUsers ...string) (Comment, error)
 	GetCreatedAt() string
 	GetUserLogin() string
+	GetFirstContactTime(client Client, clock Clock, ignoredUsers ...string) (float64, error)
 }
 
 func (i *Issue) GetFirstReply(client Client, ignoredUsers ...string) (Comment, error) {
@@ -84,4 +87,34 @@ func (i *Issue) GetCreatedAt() string {
 
 func (i *Issue) GetUserLogin() string {
 	return i.User.Login
+}
+
+func (i *Issue) GetFirstContactTime(client Client, clock Clock, ignoredUsers ...string) (float64, error) {
+
+	// // TODO: pass a set of ignored users here
+	comment, err := i.GetFirstReply(client, ignoredUsers...)
+
+	if err != nil {
+		return -1, fmt.Errorf("could not get first reply: %s", err)
+	}
+
+	// // TODO: decide whether to actually include issues without comments on them
+	var replyCreated time.Time
+	if comment.CreatedAt == "" {
+		replyCreated = clock.Now().UTC()
+	} else {
+		replyCreated, err = time.Parse(time.RFC3339, comment.CreatedAt)
+
+		if err != nil {
+			return -1, fmt.Errorf("could not parse first reply time: %s", err)
+		}
+	}
+
+	issueCreated, err := time.Parse(time.RFC3339, i.GetCreatedAt())
+	if err != nil {
+		return -1, fmt.Errorf("could not parse issue creation time: %s", err)
+	}
+	replyTime := math.Round(replyCreated.Sub(issueCreated).Minutes())
+
+	return replyTime, nil
 }

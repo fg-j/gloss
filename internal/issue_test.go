@@ -5,6 +5,7 @@ import (
 	"gloss/internal"
 	"gloss/internal/fakes"
 	"testing"
+	"time"
 
 	. "github.com/onsi/gomega"
 	"github.com/sclevine/spec"
@@ -94,35 +95,6 @@ func testIssue(t *testing.T, context spec.G, it spec.S) {
 			})
 		})
 
-		context("when the reply on an issue is from a bot", func() {
-			it.Before(func() {
-				issue = internal.Issue{
-					NumComments: 1,
-					CommentsURL: "www.example.com",
-				}
-				issue.User.Login = "originalPoster"
-
-				client.GetCall.Returns.ByteSlice = []byte(`
-[
-  {
-    "user": {
-      "login": "someBot",
-      "type": "Bot"
-    },
-		"created_at": "2001-01-01T00:00:00Z"
-  }
-]
-`)
-			})
-
-			it("does not return the reply", func() {
-				reply, err := issue.GetFirstReply(client)
-
-				Expect(err).NotTo(HaveOccurred())
-				Expect(reply).To(Equal(internal.Comment{}))
-			})
-		})
-
 		context("when the reply on an issue is from an ignored user account", func() {
 			it.Before(func() {
 				issue = internal.Issue{
@@ -190,6 +162,144 @@ func testIssue(t *testing.T, context spec.G, it spec.S) {
 				it("returns the error", func() {
 					_, err := issue.GetFirstReply(client)
 					Expect(err).To(MatchError("getting issue comments: could not unmarshal JSON '[[' : unexpected end of JSON input"))
+				})
+			})
+		})
+	})
+
+	context("GetFirstContactTime", func() {
+		var clock = &fakes.Clock{}
+		context("when there is a reply on an issue", func() {
+			it.Before(func() {
+				issue = internal.Issue{
+					NumComments: 1,
+					CommentsURL: "www.example.com",
+					CreatedAt:   "2001-01-01T00:00:00Z",
+				}
+				issue.User.Login = "originalPoster"
+
+				client.GetCall.Returns.ByteSlice = []byte(`
+[
+  {
+    "user": {
+      "login": "replyGuy",
+      "type": "User"
+    },
+		"created_at": "2001-01-01T00:10:00Z"
+  }
+]
+`)
+			})
+
+			it("returns the difference between the issue creation time and reply time in minutes", func() {
+				contactTime, err := issue.GetFirstContactTime(client, clock)
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(contactTime).To(Equal(float64(10)))
+			})
+		})
+
+		context("when there are no replies on an issue", func() {
+			it.Before(func() {
+				issue = internal.Issue{
+					CreatedAt:   "2001-01-01T00:00:00Z",
+					NumComments: 0,
+				}
+				clock.NowCall.Returns.Time = time.Date(2001, time.January, 1, 1, 0, 0, 0, time.UTC)
+			})
+
+			it("returns the difference between the issue creation and the current time in minutes", func() {
+				contactTime, err := issue.GetFirstContactTime(client, clock)
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(contactTime).To(Equal(float64(60)))
+			})
+		})
+
+		context("when the reply on an issue is from the OP", func() {
+			it.Before(func() {
+				issue = internal.Issue{
+					NumComments: 1,
+					CommentsURL: "www.example.com",
+					CreatedAt:   "2001-01-01T00:00:00Z",
+				}
+				issue.User.Login = "originalPoster"
+
+				client.GetCall.Returns.ByteSlice = []byte(`
+[
+  {
+    "user": {
+      "login": "originalPoster",
+      "type": "User"
+    },
+		"created_at": "2001-01-01T00:00:00Z"
+  }
+]
+`)
+				clock.NowCall.Returns.Time = time.Date(2001, time.January, 1, 1, 0, 0, 0, time.UTC)
+			})
+
+			it("it returns the difference between the issue creation time and current time in minutes", func() {
+				contactTime, err := issue.GetFirstContactTime(client, clock)
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(contactTime).To(Equal(float64(60)))
+			})
+		})
+
+		context("when the reply on an issue is from an ignored user account", func() {
+			it.Before(func() {
+				issue = internal.Issue{
+					NumComments: 1,
+					CommentsURL: "www.example.com",
+					CreatedAt:   "2001-01-01T00:00:00Z",
+				}
+				issue.User.Login = "originalPoster"
+
+				client.GetCall.Returns.ByteSlice = []byte(`
+[
+  {
+    "user": {
+      "login": "ignoredUser",
+      "type": "User"
+    },
+		"created_at": "2001-01-01T00:00:00Z"
+  }
+]
+`)
+				clock.NowCall.Returns.Time = time.Date(2001, time.January, 1, 1, 0, 0, 0, time.UTC)
+			})
+
+			it("it returns the difference between the issue creation time and current time in minutes", func() {
+				contactTime, err := issue.GetFirstContactTime(client, clock, "ignoredUser")
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(contactTime).To(Equal(float64(60)))
+			})
+		})
+
+		context("failure cases", func() {
+			context.Pend("when there is an error getting the first reply from an issue", func() {
+				it.Before(func() {
+				})
+
+				it("sends the error in a container in the channel", func() {
+				})
+			})
+
+			context.Pend("when there is an error parsing the first comment creation time", func() {
+				it.Before(func() {
+				})
+
+				it("sends the error in a container in the channel", func() {
+				})
+			})
+
+			context.Pend("when there is an error parsing the issue's creation time", func() {
+				it.Before(func() {
+				})
+
+				it("sends the error in a container in the channel", func() {
 				})
 			})
 		})

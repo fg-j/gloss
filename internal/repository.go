@@ -3,7 +3,6 @@ package internal
 import (
 	"encoding/json"
 	"fmt"
-	"math"
 	"strings"
 	"time"
 )
@@ -26,7 +25,7 @@ type Clock interface {
 	Now() time.Time
 }
 
-func (r *Repository) GetRecentIssues(client Client, clock Clock) ([]Issue, error) {
+func (r *Repository) GetRecentIssues(client Client, clock Clock) ([]CommentGetter, error) {
 	timeString := clock.Now().UTC().Add(-30 * 24 * time.Hour).Format(time.RFC3339)
 
 	body, err := client.Get(fmt.Sprintf("/repos/%s/issues", r.Name),
@@ -41,12 +40,17 @@ func (r *Repository) GetRecentIssues(client Client, clock Clock) ([]Issue, error
 	if err != nil {
 		return nil, fmt.Errorf("getting recent issues: could not unmarshal JSON '%s' : %s", string(body), err)
 	}
-	return issues, nil
+	var result []CommentGetter
+
+	for _, issue := range issues {
+		result = append(result, &issue)
+	}
+
+	return result, nil
 }
 
-func (r *Repository) GetFirstContactTimes(client Client, issues []CommentGetter, clock Clock, output chan TimeContainer) {
+func (r *Repository) GetIssueFirstContactTimes(client Client, issues []CommentGetter, clock Clock, output chan TimeContainer) {
 	defer close(output)
-
 	for _, issue := range issues {
 		// TODO: add the option to ignore issues by User type Bot
 		// TODO: add the option to ignore issues created by a specific set of users
@@ -54,30 +58,20 @@ func (r *Repository) GetFirstContactTimes(client Client, issues []CommentGetter,
 			continue
 		}
 		// TODO: pass a set of ignored users here
-		comment, err := issue.GetFirstReply(client)
-
+		replyTime, err := issue.GetFirstContactTime(client, clock)
 		if err != nil {
-			output <- TimeContainer{Error: fmt.Errorf("could not get first reply: %s", err)}
-			return
+			output <- TimeContainer{Time: -1, Error: fmt.Errorf("getting repo first contact times: %s", err)}
 		}
-		// TODO: decide whether to actually include issues without comments on them
-		var replyCreated time.Time
-		if comment.CreatedAt == "" {
-			replyCreated = clock.Now().UTC()
-		} else {
-			replyCreated, err = time.Parse(time.RFC3339, comment.CreatedAt)
-			if err != nil {
-				output <- TimeContainer{Error: fmt.Errorf("could not parse first reply time: %s", err)}
-				return
-			}
-		}
-
-		issueCreated, err := time.Parse(time.RFC3339, issue.GetCreatedAt())
-		if err != nil {
-			output <- TimeContainer{Error: fmt.Errorf("could not parse issue creation time: %s", err)}
-			return
-		}
-		replyTime := math.Round(replyCreated.Sub(issueCreated).Minutes())
 		output <- TimeContainer{Time: replyTime, Error: nil}
 	}
+}
+func (r *Repository) GetFirstContactTimes(client Client, clock Clock, output chan TimeContainer) {
+	defer close(output)
+	issues, err := r.GetRecentIssues(client, clock)
+
+	if err != nil {
+		output <- TimeContainer{Time: -1, Error: fmt.Errorf("getting repo first contact times: %s", err)}
+		return
+	}
+	r.GetIssueFirstContactTimes(client, issues, clock, output)
 }

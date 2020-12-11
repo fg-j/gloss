@@ -41,7 +41,7 @@ func testRepository(t *testing.T, context spec.G, it spec.S) {
 			Expect(apiClient.GetCall.Receives.Params).To(ContainElement("per_page=100"))
 			Expect(apiClient.GetCall.Receives.Params).To(ContainElement("since=2001-01-01T20:20:20Z"))
 
-			testIssue := Issue{
+			testIssue := &Issue{
 				CreatedAt:   "2001-01-01T20:20:20Z",
 				NumComments: 1,
 				CommentsURL: "test-url.com",
@@ -74,20 +74,19 @@ func testRepository(t *testing.T, context spec.G, it spec.S) {
 		})
 	})
 
-	context("GetFirstContactTimes", func() {
+	context("GetIssueFirstContactTimes", func() {
 		var timeChan chan TimeContainer
 		var issues []CommentGetter
 		context("when given a set of issues", func() {
 			it.Before(func() {
 				issue := &fakes.CommentGetter{}
-				issue.GetFirstReplyCall.Returns.Comment = Comment{CreatedAt: "2001-01-01T21:20:20Z"}
-				issue.GetCreatedAtCall.Returns.String = "2001-01-01T20:20:20Z"
+				issue.GetFirstContactTimeCall.Returns.Float64 = float64(60)
 
 				issues = []CommentGetter{issue}
 			})
 			it("writes the first reply time for an issue to the output channel", func() {
 				timeChan = make(chan TimeContainer)
-				go repo.GetFirstContactTimes(apiClient, issues, clock, timeChan)
+				go repo.GetIssueFirstContactTimes(apiClient, issues, clock, timeChan)
 
 				Eventually(<-timeChan).Should(Equal(TimeContainer{Time: 60, Error: nil}))
 			})
@@ -95,12 +94,9 @@ func testRepository(t *testing.T, context spec.G, it spec.S) {
 		context("when an issue has been opened by a bot", func() {
 			it.Before(func() {
 				realIssue := &fakes.CommentGetter{}
-				realIssue.GetFirstReplyCall.Returns.Comment = Comment{CreatedAt: "2001-01-01T21:20:20Z"}
-				realIssue.GetCreatedAtCall.Returns.String = "2001-01-01T20:20:20Z"
+				realIssue.GetFirstContactTimeCall.Returns.Float64 = float64(60)
 
 				botIssue := &fakes.CommentGetter{}
-				botIssue.GetFirstReplyCall.Returns.Comment = Comment{CreatedAt: "2001-01-01T20:21:20Z"}
-				botIssue.GetCreatedAtCall.Returns.String = "2001-01-01T20:20:20Z"
 				botIssue.GetUserLoginCall.Returns.String = "paketo-bot"
 
 				issues = []CommentGetter{realIssue, botIssue}
@@ -108,77 +104,30 @@ func testRepository(t *testing.T, context spec.G, it spec.S) {
 
 			it("does not include reply time for the bot issue", func() {
 				timeChan = make(chan TimeContainer)
-				go repo.GetFirstContactTimes(apiClient, issues, clock, timeChan)
+				go repo.GetIssueFirstContactTimes(apiClient, issues, clock, timeChan)
 
 				Eventually(<-timeChan).Should(Equal(TimeContainer{Time: 60, Error: nil}))
 				Consistently(<-timeChan).ShouldNot(Equal(TimeContainer{Time: 1, Error: nil}))
 			})
 		})
 
-		context("when an issue has no reply", func() {
-			it.Before(func() {
-				issue := &fakes.CommentGetter{}
-				issue.GetFirstReplyCall.Returns.Comment = Comment{}
-				issue.GetCreatedAtCall.Returns.String = "2001-01-01T20:20:20Z"
-				clock.NowCall.Returns.Time = time.Date(2001, time.January, 1, 20, 20, 20, 0, time.UTC).Add(1 * time.Hour)
-
-				issues = []CommentGetter{issue}
-			})
-			it("returns the time between run time and issue opening", func() {
-				timeChan = make(chan TimeContainer)
-				go repo.GetFirstContactTimes(apiClient, issues, clock, timeChan)
-
-				Eventually(<-timeChan).Should(Equal(TimeContainer{Time: 60, Error: nil}))
-			})
-		})
 		context("failure cases", func() {
-			context("when there is an error getting the first reply from an issue", func() {
+			context("when there is an error getting the first contact time from an issue", func() {
 				it.Before(func() {
 					issue := &fakes.CommentGetter{}
-					issue.GetFirstReplyCall.Returns.Error = fmt.Errorf("some problem getting reply")
+					issue.GetFirstContactTimeCall.Returns.Error = fmt.Errorf("some problem getting reply")
 					issues = []CommentGetter{issue}
 				})
 
 				it("sends the error in a container in the channel", func() {
 					timeChan = make(chan TimeContainer)
-					go repo.GetFirstContactTimes(apiClient, issues, clock, timeChan)
+					go repo.GetIssueFirstContactTimes(apiClient, issues, clock, timeChan)
 
-					Eventually((<-timeChan).Error).Should(MatchError(fmt.Errorf("could not get first reply: some problem getting reply")))
-
-				})
-			})
-
-			context("when there is an error parsing the first comment creation time", func() {
-				it.Before(func() {
-					issue := &fakes.CommentGetter{}
-					issue.GetFirstReplyCall.Returns.Comment = Comment{CreatedAt: "some-garbage"}
-					issues = []CommentGetter{issue}
-				})
-
-				it("sends the error in a container in the channel", func() {
-					timeChan = make(chan TimeContainer)
-					go repo.GetFirstContactTimes(apiClient, issues, clock, timeChan)
-
-					Eventually((<-timeChan).Error).Should(MatchError(fmt.Errorf(`could not parse first reply time: parsing time "some-garbage" as "2006-01-02T15:04:05Z07:00": cannot parse "some-garbage" as "2006"`)))
+					Eventually((<-timeChan).Error).Should(MatchError(fmt.Errorf("getting repo first contact times: some problem getting reply")))
 
 				})
 			})
 
-			context("when there is an error parsing the issue's creation time", func() {
-				it.Before(func() {
-					issue := &fakes.CommentGetter{}
-					issue.GetFirstReplyCall.Returns.Comment = Comment{}
-					issue.GetCreatedAtCall.Returns.String = "some-garbage"
-					issues = []CommentGetter{issue}
-				})
-
-				it("sends the error in a container in the channel", func() {
-					timeChan = make(chan TimeContainer)
-					go repo.GetFirstContactTimes(apiClient, issues, clock, timeChan)
-
-					Eventually((<-timeChan).Error).Should(MatchError(fmt.Errorf(`could not parse issue creation time: parsing time "some-garbage" as "2006-01-02T15:04:05Z07:00": cannot parse "some-garbage" as "2006"`)))
-				})
-			})
 		})
 	})
 }

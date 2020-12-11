@@ -49,13 +49,13 @@ func testContactTimes(t *testing.T, context spec.G, it spec.S) {
 		gexec.CleanupBuildArtifacts()
 	})
 
-	context("given a valid auth token is provided", func() {
+	context("given a valid auth token and org are provided", func() {
 		it.Before(func() {
 			os.Setenv("GITHUB_TOKEN", "some-token")
 		})
 
-		it("correctly calculates median merge time of closed PRs from the past 30 days", func() {
-			command := exec.Command(gloss, "first-contact-times", "--server", mockGithubServer.URL)
+		it("correctly prints average, median, 95th percentile first contact times on issues", func() {
+			command := exec.Command(gloss, "first-contact-times", "--server", mockGithubServer.URL, "--org example-org")
 			fmt.Println(mockGithubServerURI)
 			buffer := gbytes.NewBuffer()
 			session, err := gexec.Start(command, buffer, buffer)
@@ -66,7 +66,7 @@ func testContactTimes(t *testing.T, context spec.G, it spec.S) {
 			out := string(buffer.Contents())
 
 			Expect(out).To(ContainLines(
-				`blah blah blah`,
+				`example-org/example-repo #1 received response from example-maintainer in 10.0000 minutes`,
 			))
 		})
 	})
