@@ -14,13 +14,14 @@ import (
 )
 
 func testAPIClient(t *testing.T, context spec.G, it spec.S) {
-	var apiClient APIClient
+	var apiClient *APIClient
 	var httpClient *fakes.HTTPClient
 	var Expect = NewWithT(t).Expect
 
 	httpClient = &fakes.HTTPClient{}
 
-	apiClient = NewAPIClient("https://test-server.com", httpClient)
+	apiClient = NewAPIClient("https://test-server.com")
+	apiClient.Client = httpClient
 
 	context("Get", func() {
 		//TODO: Add test that auth token is added

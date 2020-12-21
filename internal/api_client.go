@@ -21,12 +21,12 @@ type Client interface {
 //TODO: make this store a URL with a scheme and Host instead of re-parsing every time
 type APIClient struct {
 	ServerURL string
-	client    HTTPClient
+	Client    HTTPClient
 }
 
-func NewAPIClient(serverURL string, httpClient HTTPClient) APIClient {
-	return APIClient{ServerURL: serverURL,
-		client: httpClient}
+func NewAPIClient(serverURL string) *APIClient {
+	return &APIClient{ServerURL: serverURL,
+		Client: &http.Client{}}
 }
 
 func (c *APIClient) Get(path string, params ...string) ([]byte, error) {
@@ -49,7 +49,7 @@ func (c *APIClient) Get(path string, params ...string) ([]byte, error) {
 	request, _ := http.NewRequest("GET", uri.String(), nil)
 	request.Header.Add("Authorization", fmt.Sprintf("token %s", os.Getenv("GITHUB_TOKEN")))
 
-	response, err := c.client.Do(request)
+	response, err := c.Client.Do(request)
 	if err != nil {
 		return nil, fmt.Errorf("client couldn't make HTTP request: %s", err)
 	}

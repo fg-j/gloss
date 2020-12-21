@@ -1,7 +1,5 @@
 package main
 
-import "fmt"
-
 type Config struct {
 	Organizations []string
 	Server        string
@@ -9,5 +7,9 @@ type Config struct {
 }
 
 func main() {
-	fmt.Println("vim-go")
+	config := Config{}
+	config.Organizations = []string{"paketo-buildpacks"}
+	config.Server = "https://api.github.com"
+	config.NumWorkers = 1
+	CalculateFirstContactTimeMetric(config)
 }

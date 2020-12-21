@@ -3,11 +3,13 @@ package main
 import (
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"gloss/internal"
 
 	"github.com/aclements/go-moremath/stats"
+	"github.com/paketo-buildpacks/packit/chronos"
 )
 
 func CalculateFirstContactTimeMetric(config Config) error {
@@ -15,34 +17,37 @@ func CalculateFirstContactTimeMetric(config Config) error {
 	if os.Getenv("GITHUB_TOKEN") == "" {
 		fmt.Println("Please set GITHUB_TOKEN")
 		os.Exit(1)
-
-		in := getOrgReposChan(config.Organizations, config.Server)
-
-		fmt.Printf("Running with %d workers...\nUse --workers to set.\n\n", config.NumWorkers)
-
-		var responseTimes []float64
-		var workers []<-chan internal.TimeContainer
-		for i := 0; i < config.NumWorkers; i++ {
-			workers = append(workers, worker(i, config.Server, in))
-		}
-
-		for timeContainer := range merge(workers...) {
-			if err := timeContainer.Error; err != nil {
-				fmt.Printf("failed to calculate merge times: %s\n", err)
-				os.Exit(1)
-			}
-			responseTimes = append(responseTimes, timeContainer.Time)
-		}
-		responseTimesSample := stats.Sample{Xs: responseTimes}
-		fmt.Printf("\nMerge Time Stats\nFor %d pull requests\n    Average: %f hours\n    Median %f hours\n    95th Percentile: %f hours\n",
-			len(responseTimesSample.Xs),
-			(responseTimesSample.Mean() / 60),
-			(responseTimesSample.Quantile(0.5) / 60),
-			(responseTimesSample.Quantile(0.95) / 60))
-
-		duration := time.Since(start)
-		fmt.Printf("Execution took %f seconds.\n", duration.Seconds())
 	}
+
+	fmt.Println("creating client")
+	apiClient := internal.NewAPIClient(config.Server)
+	fmt.Println("getting org repos")
+	in := getOrgReposChan(config.Organizations, apiClient)
+
+	fmt.Printf("Running with %d workers...\nUse --workers to set.\n\n", config.NumWorkers)
+
+	var responseTimes []float64
+	var workers []<-chan internal.TimeContainer
+	for i := 0; i < config.NumWorkers; i++ {
+		workers = append(workers, worker(i, apiClient, in))
+	}
+
+	for timeContainer := range merge(workers...) {
+		if err := timeContainer.Error; err != nil {
+			fmt.Printf("failed to calculate merge times: %s\n", err)
+			os.Exit(1)
+		}
+		responseTimes = append(responseTimes, timeContainer.Time)
+	}
+	responseTimesSample := stats.Sample{Xs: responseTimes}
+	fmt.Printf("\nResponse Time Stats\nFor %d issues/PRs\n    Average: %f days\n    Median %f days\n    95th Percentile: %f days\n",
+		len(responseTimesSample.Xs),
+		(responseTimesSample.Mean() / (60 * 24)),
+		(responseTimesSample.Quantile(0.5) / (60 * 24)),
+		(responseTimesSample.Quantile(0.95) / (60 * 24)))
+
+	duration := time.Since(start)
+	fmt.Printf("Execution took %f seconds.\n", duration.Seconds())
 
 	return nil
 }
@@ -52,25 +57,46 @@ func worker(id int, client internal.Client, input <-chan internal.RepositoryCont
 
 	go func() {
 		for repo := range input {
+			fmt.Printf("Repository: %s\n\n", repo.Repository.Name)
 			if repo.Error != nil {
-				output <- internal.TimeContainer{Error : repo.Error}
+				output <- internal.TimeContainer{Error: repo.Error}
 				close(output)
 			}
-			repo.Repository.GetFirstContactTimes(client, clock, output)
+			repo.Repository.GetFirstContactTimes(client, chronos.DefaultClock, output)
+			fmt.Println("")
 		}
+		close(output)
+	}()
+	return output
+}
+
+func merge(ws ...<-chan internal.TimeContainer) chan internal.TimeContainer {
+	var wg sync.WaitGroup
+	output := make(chan internal.TimeContainer)
+
+	getTimes := func(c <-chan internal.TimeContainer) {
+		for timeContainer := range c {
+			output <- timeContainer
+		}
+		wg.Done()
 	}
-return output
+	wg.Add(len(ws))
+	for _, w := range ws {
+		go getTimes(w)
+	}
+	go func() {
+		wg.Wait()
+		close(output)
+	}()
+	return output
 }
 
-func merge(...<-chan internal.TimeContainer) chan internal.TimeContainer{
-return nil
-}
-
-func getOrgReposChan(orgs []string, serverURI string) chan internal.RepositoryContainer {
+func getOrgReposChan(orgNames []string, client internal.Client) chan internal.RepositoryContainer {
 	output := make(chan internal.RepositoryContainer)
 	go func() {
-		for _, org := range orgs {
-			repos, err := internal.GetOrgRepos(org, serverURI)
+		for _, orgName := range orgNames {
+			org := internal.Organization{Name: orgName}
+			repos, err := org.GetRepos(client)
 			if err != nil {
 				output <- internal.RepositoryContainer{Error: fmt.Errorf("failed to get repositories: %s", err)}
 			}

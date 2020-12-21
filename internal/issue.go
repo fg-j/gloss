@@ -17,6 +17,7 @@ type Issue struct {
 	CreatedAt   string `json:"created_at"`
 	NumComments int    `json:"comments"`
 	CommentsURL string `json:"comments_url"`
+	Number      int    `json:"number"`
 	User        struct {
 		Login string `json:"login"`
 	} `json:"user"`
@@ -35,6 +36,7 @@ type CommentGetter interface {
 	GetFirstReply(client Client, ignoredUsers ...string) (Comment, error)
 	GetCreatedAt() string
 	GetUserLogin() string
+	GetNumber() int
 	GetFirstContactTime(client Client, clock Clock, ignoredUsers ...string) (float64, error)
 }
 
@@ -88,6 +90,9 @@ func (i *Issue) GetCreatedAt() string {
 func (i *Issue) GetUserLogin() string {
 	return i.User.Login
 }
+func (i *Issue) GetNumber() int {
+	return i.Number
+}
 
 func (i *Issue) GetFirstContactTime(client Client, clock Clock, ignoredUsers ...string) (float64, error) {
 
@@ -115,6 +120,6 @@ func (i *Issue) GetFirstContactTime(client Client, clock Clock, ignoredUsers ...
 		return -1, fmt.Errorf("could not parse issue creation time: %s", err)
 	}
 	replyTime := math.Round(replyCreated.Sub(issueCreated).Minutes())
-
+	fmt.Sprintf("issue by %s at URL %s took %f\n", i.User.Login, i.CommentsURL, replyTime)
 	return replyTime, nil
 }
