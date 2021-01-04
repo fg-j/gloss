@@ -3,7 +3,6 @@ package internal
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 )
 
@@ -43,47 +42,4 @@ func (r *Repository) GetRecentIssues(client Client, clock Clock) ([]Issue, error
 	}
 
 	return issues, nil
-}
-
-// func (r *Repository) GetIssueFirstContactTimes(client Client, issues []CommentGetter, clock Clock, output chan TimeContainer) {
-// 	fmt.Printf("number of issues: %d\n", len(issues))
-// 	if len(issues) > 1 {
-// 		fmt.Println(issues[1].GetUserLogin())
-// 	}
-// 	for _, issue := range issues {
-// 		// TODO: add the option to ignore issues by User type Bot
-// 		// TODO: add the option to ignore issues created by a specific set of users
-// 		if strings.Contains(issue.GetUserLogin(), "bot") {
-// 			continue
-// 		}
-// 		// TODO: pass a set of ignored users here
-// 		replyTime, err := issue.GetFirstContactTime(client, clock)
-// 		if err != nil {
-// 			output <- TimeContainer{Time: -1, Error: fmt.Errorf("getting repo first contact times: %s", err)}
-// 		}
-// 		output <- TimeContainer{Time: replyTime, Error: nil}
-// 		fmt.Printf("Repo %s issue #%d by %s first reply took %f minutes.\n", r.Name, issue.GetNumber(), issue.GetUserLogin(), replyTime)
-// 	}
-// }
-func (r *Repository) GetFirstContactTimes(client Client, clock Clock, output chan TimeContainer) {
-	issues, err := r.GetRecentIssues(client, clock)
-
-	if err != nil {
-		output <- TimeContainer{Time: -1, Error: fmt.Errorf("getting repo first contact times: %s", err)}
-		return
-	}
-	for _, issue := range issues {
-		// TODO: add the option to ignore issues by User type Bot
-		// TODO: add the option to ignore issues created by a specific set of users
-		if strings.Contains(issue.GetUserLogin(), "bot") {
-			continue
-		}
-		// TODO: pass a set of ignored users here
-		replyTime, err := issue.GetFirstContactTime(client, clock)
-		if err != nil {
-			output <- TimeContainer{Time: -1, Error: fmt.Errorf("getting repo first contact times: %s", err)}
-		}
-		output <- TimeContainer{Time: replyTime, Error: nil}
-		fmt.Printf("%s #%d by %s first reply took %f minutes.\n", r.Name, issue.GetNumber(), issue.GetUserLogin(), replyTime)
-	}
 }

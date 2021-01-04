@@ -9,6 +9,6 @@ import (
 
 func TestCommands(t *testing.T) {
 	suite := spec.New("gloss", spec.Report(report.Terminal{}))
-	suite("TestContactTimes", testContactTimes)
+	suite("TestResponseTimes", testResponseTimes)
 	suite.Run(t)
 }

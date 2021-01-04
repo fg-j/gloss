@@ -167,7 +167,7 @@ func testIssue(t *testing.T, context spec.G, it spec.S) {
 		})
 	})
 
-	context("GetFirstContactTime", func() {
+	context("GetFirstResponseTime", func() {
 		var clock = &fakes.Clock{}
 		context("when there is a reply on an issue", func() {
 			it.Before(func() {
@@ -192,10 +192,11 @@ func testIssue(t *testing.T, context spec.G, it spec.S) {
 			})
 
 			it("returns the difference between the issue creation time and reply time in minutes", func() {
-				contactTime, err := issue.GetFirstContactTime(client, clock)
+				responseTime, replyUser, err := issue.GetFirstResponseTime(client, clock)
 
 				Expect(err).NotTo(HaveOccurred())
-				Expect(contactTime).To(Equal(float64(10)))
+				Expect(responseTime).To(Equal(float64(10)))
+				Expect(replyUser).To(Equal("replyGuy"))
 			})
 		})
 
@@ -209,10 +210,11 @@ func testIssue(t *testing.T, context spec.G, it spec.S) {
 			})
 
 			it("returns the difference between the issue creation and the current time in minutes", func() {
-				contactTime, err := issue.GetFirstContactTime(client, clock)
+				responseTime, replyUser, err := issue.GetFirstResponseTime(client, clock)
 
 				Expect(err).NotTo(HaveOccurred())
-				Expect(contactTime).To(Equal(float64(60)))
+				Expect(responseTime).To(Equal(float64(60)))
+				Expect(replyUser).To(Equal(""))
 			})
 		})
 
@@ -240,14 +242,15 @@ func testIssue(t *testing.T, context spec.G, it spec.S) {
 			})
 
 			it("it returns the difference between the issue creation time and current time in minutes", func() {
-				contactTime, err := issue.GetFirstContactTime(client, clock)
+				responseTime, replyUser, err := issue.GetFirstResponseTime(client, clock)
 
 				Expect(err).NotTo(HaveOccurred())
-				Expect(contactTime).To(Equal(float64(60)))
+				Expect(responseTime).To(Equal(float64(60)))
+				Expect(replyUser).To(Equal(""))
 			})
 		})
 
-		context("when the reply on an issue is from an ignored user account", func() {
+		context.Pend("when the reply on an issue is from an ignored user account", func() {
 			it.Before(func() {
 				issue = internal.Issue{
 					NumComments: 1,
@@ -271,14 +274,15 @@ func testIssue(t *testing.T, context spec.G, it spec.S) {
 			})
 
 			it("it returns the difference between the issue creation time and current time in minutes", func() {
-				contactTime, err := issue.GetFirstContactTime(client, clock, "ignoredUser")
+				responseTime, _, err := issue.GetFirstResponseTime(client, clock, "ignoredUser")
 
 				Expect(err).NotTo(HaveOccurred())
-				Expect(contactTime).To(Equal(float64(60)))
+				Expect(responseTime).To(Equal(float64(60)))
 			})
 		})
 
 		context("failure cases", func() {
+			//TODO: Complete these tests
 			context.Pend("when there is an error getting the first reply from an issue", func() {
 				it.Before(func() {
 				})

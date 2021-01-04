@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -12,7 +13,7 @@ import (
 	"github.com/paketo-buildpacks/packit/chronos"
 )
 
-func CalculateFirstContactTimeMetric(config Config) error {
+func CalculateResponseTimeMetric(config Config) error {
 	start := time.Now()
 	if os.Getenv("GITHUB_TOKEN") == "" {
 		fmt.Println("Please set GITHUB_TOKEN")
@@ -60,10 +61,11 @@ func worker(id int, client internal.Client, input <-chan internal.RepositoryCont
 			fmt.Printf("Repository: %s\n\n", repo.Repository.Name)
 			if repo.Error != nil {
 				output <- internal.TimeContainer{Error: repo.Error}
-				close(output)
+				break
+			} else {
+				getRepoFirstResponseTimes(repo.Repository, client, chronos.DefaultClock, output)
+				fmt.Println("")
 			}
-			repo.Repository.GetFirstContactTimes(client, chronos.DefaultClock, output)
-			fmt.Println("")
 		}
 		close(output)
 	}()
@@ -111,4 +113,27 @@ func getOrgReposChan(orgNames []string, client internal.Client) chan internal.Re
 		close(output)
 	}()
 	return output
+}
+
+func getRepoFirstResponseTimes(repo internal.Repository, client internal.Client, clock internal.Clock, output chan internal.TimeContainer) {
+	issues, err := repo.GetRecentIssues(client, clock)
+
+	if err != nil {
+		output <- internal.TimeContainer{Time: -1, Error: fmt.Errorf("getting repo response times: %s", err)}
+		return
+	}
+	for _, issue := range issues {
+		// TODO: add the option to ignore issues by User type Bot
+		// TODO: add the option to ignore issues created by a specific set of users
+		if strings.Contains(issue.GetUserLogin(), "bot") {
+			continue
+		}
+		// TODO: pass a set of ignored users here
+		replyTime, replyUser, err := issue.GetFirstResponseTime(client, clock)
+		if err != nil {
+			output <- internal.TimeContainer{Time: -1, Error: fmt.Errorf("getting repo response times: %s", err)}
+		}
+		output <- internal.TimeContainer{Time: replyTime, Error: nil}
+		fmt.Printf("%s #%d by %s received response from %s in %f minutes\n", repo.Name, issue.GetNumber(), issue.GetUserLogin(), replyUser, replyTime)
+	}
 }

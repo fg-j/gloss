@@ -37,7 +37,7 @@ type CommentGetter interface {
 	GetCreatedAt() string
 	GetUserLogin() string
 	GetNumber() int
-	GetFirstContactTime(client Client, clock Clock, ignoredUsers ...string) (float64, error)
+	GetFirstResponseTime(client Client, clock Clock, ignoredUsers ...string) (float64, error)
 }
 
 func (i *Issue) GetFirstReply(client Client, ignoredUsers ...string) (Comment, error) {
@@ -94,32 +94,33 @@ func (i *Issue) GetNumber() int {
 	return i.Number
 }
 
-func (i *Issue) GetFirstContactTime(client Client, clock Clock, ignoredUsers ...string) (float64, error) {
+func (i *Issue) GetFirstResponseTime(client Client, clock Clock, ignoredUsers ...string) (float64, string, error) {
 
 	// // TODO: pass a set of ignored users here
 	comment, err := i.GetFirstReply(client, ignoredUsers...)
 
 	if err != nil {
-		return -1, fmt.Errorf("could not get first reply: %s", err)
+		return -1, "", fmt.Errorf("could not get first reply: %s", err)
 	}
 
 	// // TODO: decide whether to actually include issues without comments on them
 	var replyCreated time.Time
+	var replyUser string
 	if comment.CreatedAt == "" {
 		replyCreated = clock.Now().UTC()
 	} else {
 		replyCreated, err = time.Parse(time.RFC3339, comment.CreatedAt)
 
 		if err != nil {
-			return -1, fmt.Errorf("could not parse first reply time: %s", err)
+			return -1, "", fmt.Errorf("could not parse first reply time: %s", err)
 		}
+		replyUser = comment.User.Login
 	}
 
 	issueCreated, err := time.Parse(time.RFC3339, i.GetCreatedAt())
 	if err != nil {
-		return -1, fmt.Errorf("could not parse issue creation time: %s", err)
+		return -1, "", fmt.Errorf("could not parse issue creation time: %s", err)
 	}
 	replyTime := math.Round(replyCreated.Sub(issueCreated).Minutes())
-	fmt.Sprintf("issue by %s at URL %s took %f\n", i.User.Login, i.CommentsURL, replyTime)
-	return replyTime, nil
+	return replyTime, replyUser, nil
 }
